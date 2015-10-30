@@ -89,7 +89,25 @@ if(!config.credentials.client_secret) {
 }
 
 
-function parseGDoc(dom) {
+function parseGDoc(dom,res) {
+	// From https://github.com/newsdev/archieml-js/blob/master/examples/google_drive.js
+
+	/*
+	* Copyright (c) 2015 The New York Times Company
+	* 
+	* Licensed under the Apache License, Version 2.0 (the "License");
+	* you may not use this library except in compliance with the License.
+	* You may obtain a copy of the License at
+	* 
+	*     http://www.apache.org/licenses/LICENSE-2.0
+	* 
+	* Unless required by applicable law or agreed to in writing, software
+	* distributed under the License is distributed on an "AS IS" BASIS,
+	* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	* See the License for the specific language governing permissions and
+	* limitations under the License.
+	*/
+
 	// Parse the document as HTML
 	//
 	// There are a few extra steps that we do to make working with Google
@@ -151,39 +169,53 @@ function parseGDoc(dom) {
 		tagHandlers[tag] = tagHandlers.p;
 	});
 
-	var body = dom[0].children[1];
-	var parsedText = tagHandlers._base(body);
+	try {
+		var body = dom[0].children[1];
+		var parsedText = tagHandlers._base(body);
+		
+
+		// Convert html entities into the characters as they exist in the google doc
+		var entities = new Entities();
+		parsedText = entities.decode(parsedText);
+
+		// Remove smart quotes from inside tags
+		parsedText = parsedText.replace(/<[^<>]*>/g, function(match){
+			return match.replace(/”|“/g, '"').replace(/‘|’/g, "'");
+		});
+
+		res.send(archieml.load(parsedText));
+	}
+	catch (e) {
+		console.log(timestamp(), 403, "Cannot access that Google Doc");
+		res.status(403).send("Cannot access that Google Doc. Make sure sharing is set to “Anyone with link can view.”");
+	}
 	
+}
 
-	// Convert html entities into the characters as they exist in the google doc
-	var entities = new Entities();
-	parsedText = entities.decode(parsedText);
-
-	// Remove smart quotes from inside tags
-	parsedText = parsedText.replace(/<[^<>]*>/g, function(match){
-		return match.replace(/”|“/g, '"').replace(/‘|’/g, "'");
-	});
-
-	return archieml.load(parsedText);
+function timestamp() {
+	return "[" + new Date().toISOString().split("T")[1] + "]";
 }
 
 app.get(REDIRECT_PATH, function(req, res) {
+	console.log(timestamp(), "GET", REDIRECT_PATH);
 	var code = url.parse(req.url, true).query.code;
 	oauth2Client.getToken(code,function(err,tokens) {
 		if(!err) {
 			config.tokens = tokens;
 			fs.writeFileSync(configpath,JSON.stringify(config),"utf8");
 			oauth2Client.setCredentials(config.tokens);
-			console.log("The app is now authorized");
+			console.log(timestamp(), "The app is now authorized");
 			res.send("The app is now authorized!");
 		}
 		else {
+			console.log(timestamp(), "Failed to get acceess token");
 			res.send("There was an error getting an access token");
 		}
 	});
 });
 
 app.get(LOGIN_PATH, function(req, res) {
+	console.log(timestamp(), "GET", LOGIN_PATH);
 	var redirect_url = oauth2Client.generateAuthUrl({
 		access_type: 'offline',
 		scope: ['https://www.googleapis.com/auth/drive.readonly'],
@@ -198,6 +230,7 @@ app.get("/favicon.ico",function(req,res) {
 });
 
 app.get('/:key', function (req, res) {
+	console.log(timestamp(), "GET", "/" + DOC_KEY);
 	var latest_tokens = JSON.parse(fs.readFileSync(configpath,"utf8")).tokens;
 
 	oauth2Client.setCredentials(latest_tokens);
@@ -215,8 +248,7 @@ app.get('/:key', function (req, res) {
 				export_link = doc.exportLinks['text/html'];
 				oauth2Client._makeRequest({method: "GET", uri: export_link}, function(err, body) {
 					var handler = new htmlparser.DomHandler(function(error, dom) {
-						var parsed = parseGDoc(dom);
-						res.send(parsed);
+						parseGDoc(dom,res);
 					});
 
 					var parser = new htmlparser.Parser(handler);
@@ -258,10 +290,10 @@ function run() {
 			});
 		}
 		else {
-			console.log("you're all set up and ready to go!");
+			console.log("You're all set up and ready to go!");
 		}
 
-		console.log('the aml-gdoc-server is up and listening at http://%s:%s', HOST, PORT);
+		console.log('%s The aml-gdoc-server is up and listening at http://%s:%s',timestamp(), HOST, PORT);
 	});
 
 }
