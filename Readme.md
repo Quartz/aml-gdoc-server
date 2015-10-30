@@ -6,13 +6,13 @@ It was created for the Quartz things team, which uses it as part of our build pr
 ## Installation
 
 To install run
-`npm install -g git@gitlab.com:quartzthings/aml-gdoc-server.git`
+	npm install -g git@gitlab.com:quartzthings/aml-gdoc-server.git
 in your terminal shell
 
 ## Usage
 
 To start the server run
-`aml-gdoc-server`
+	aml-gdoc-server
 in your terminal shell
 
 ### On the first run
