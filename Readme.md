@@ -1,6 +1,6 @@
 # aml-gdoc-server
 
-This is a simple way to retrieve Google Docs written in the ArchieML format as json for web apps.
+This is a simple way to retrieve Google Docs written in the [ArchieML](http://archieml.org/) format as json for web apps.
 It was created for the Quartz things team, which uses it as part of our build process to streamline the editing of our work.
 
 ## Installation
@@ -17,7 +17,7 @@ in your terminal shell
 
 ### On the first run
 
-The first time you start the server it will prompt you to provide it with Google API credentials. You will be given instructions on securing those. These credentials and subsiquent authorization tokens are saved in a hidden file at ~/.aml-gdoc-credentials as a json file
+The first time you start the server it will prompt you to provide it with Google API credentials. You will be given instructions on securing those. These credentials and subsiquent authorization tokens are saved in a hidden file at `~/.aml-gdoc-credentials` in json format
 
 ### On subsiquent runs
 
