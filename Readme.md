@@ -6,7 +6,7 @@ It was created for the Quartz things team, which uses it as part of our build pr
 ## Installation
 
 To install run
-`npm install -g TKTKTKTKTKTKT`
+`npm install -g git@gitlab.com:quartzthings/aml-gdoc-server.git`
 in your terminal shell
 
 ## Usage
