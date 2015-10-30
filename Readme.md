@@ -6,7 +6,7 @@ It was created for the Quartz things team, which uses it as part of our build pr
 ## Installation
 
 To install run
-`npm install -g TK`
+`npm install -g TKTKTKTKTKTKT`
 in your terminal shell
 
 ## Usage
