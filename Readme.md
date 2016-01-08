@@ -21,9 +21,9 @@ in your terminal shell
 
 ### On the first run
 
-The first time you start the server it will prompt you to provide it with Google API credentials. You will be given instructions on securing those. These credentials and subsiquent authorization tokens are saved in a hidden file at `~/.aml-gdoc-credentials` in json format
+The first time you start the server it will prompt you to provide it with Google API credentials. You will be given instructions on securing those. These credentials and subsequent authorization tokens are saved in a hidden file at `~/.aml-gdoc-credentials` in json format
 
-### On subsiquent runs
+### On subsequent runs
 
 After the one time setup procedures are completed, all future instances of the server will start immediately upon running `aml-gdoc-server` in your shell
 
@@ -33,5 +33,5 @@ The server defaults to port 6006 i.e. "Goog."
 
 ArchieML formatted Google Docs can can be retrieved using this url structure `http://127.0.0.1:6006/{google-doc-key}`
 
-Currently your google doc needs to be set to "Allow anyone with the link to view"
+Currently your Google doc needs to be set to "Allow anyone with the link to view"
 
