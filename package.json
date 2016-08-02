@@ -5,6 +5,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Quartz/aml-gdoc-server.git"
+  },
   "keywords": [
     "AML",
     "ArchieML"
@@ -16,7 +20,7 @@
     "aml-gdoc-server": "index.js"
   },
   "dependencies": {
-    "archieml": "^0.3.1",
+    "archieml": "^0.4.2",
     "expand-tilde": "^1.2.0",
     "express": "^4.13.3",
     "fs": "0.0.2",
