@@ -23,7 +23,6 @@
     "archieml": "^0.4.2",
     "expand-tilde": "^1.2.0",
     "express": "^4.13.3",
-    "fs": "0.0.2",
     "googleapis": "^2.1.6",
     "html-entities": "^1.2.0",
     "htmlparser2": "^3.8.3",
