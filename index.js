@@ -89,15 +89,30 @@ function saveConfig() {
 	fs.writeFileSync(configpath, JSON.stringify(config, null, 4))
 }
 
+
 function timestamp() {
 	return "[" + new Date().toISOString().split("T")[1] + "]";
 }
 
+async function updateToken() {
+	
+	console.log(`${timestamp()} Updating access token`);
+
+	oAuth2Client.setCredentials({
+		refresh_token: config.tokens.refresh_token
+	});
+
+	let t = await oAuth2Client.getAccessToken();
+	config.tokens = Object.assign(config.tokens, t.res.data);
+
+	saveConfig();
+}
 
 function getNewToken(oA2C, callback) {
   const authUrl = oA2C.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
+    approval_prompt: 'force'
   });
 
   console.log('Please authorize the app in your browser');
@@ -106,17 +121,16 @@ function getNewToken(oA2C, callback) {
 }
 
 function authorize(credentials, callback) {
-	console.log(credentials)
   const {client_secret, client_id, redirect_uris} = credentials;
   oAuth2Client = new google.auth.OAuth2(
       client_id, client_secret, redirect_uris[0]);
 
-  // Check if we have previously stored a token.
-  fs.readFile(configpath, (err, config) => {
-    if (err) return getNewToken(oAuth2Client, callback);
-    oAuth2Client.setCredentials(config.tokens);
-    callback(oAuth2Client);
-  });
+	if(Date.now() > config.tokens.expiry_date) {
+		updateToken(oAuth2Client)
+	}
+
+	oAuth2Client.setCredentials(config.tokens);
+	callback(oAuth2Client);
 }
 
 app.get(REDIRECT_PATH, function(req, res) {
@@ -126,10 +140,9 @@ app.get(REDIRECT_PATH, function(req, res) {
 
 	oAuth2Client.getToken(code, (err, token) => {
 	  if (err) return res.send(`There was an error getting an access token\n{JSON.stringify(err, null, 4)}`);
-	  
 
 	  oAuth2Client.setCredentials(token);
-	  config.tokens = token;
+	  config.tokens = Object.assign(config.tokens, token);
 	  saveConfig();
 
 	  console.log(timestamp(), "The app is now authorized");
@@ -157,10 +170,13 @@ app.get("/favicon.ico",function(req,res) {
 app.get('/:key', function (req, res) {
 	console.log(timestamp(), "GET", "/" + DOC_KEY);
 
+	if(Date.now() > config.tokens.expiry_date) updateToken();
+
 	oAuth2Client.setCredentials(config.tokens);
 
 	docToArchieML({ documentId: DOC_KEY, auth: oAuth2Client })
-		.then(r => res.send(r), e => res.status(e.code).send(e.response.data.error));
+		.then(r => res.send(r), e => res.status(e.code || 500 ).send(e.response ? e.response.data.error : e))
+		.catch(console.log);
 	
 });
 
