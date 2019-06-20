@@ -94,15 +94,15 @@ function timestamp() {
 	return "[" + new Date().toISOString().split("T")[1] + "]";
 }
 
-async function updateToken() {
+async function updateToken(oA2C) {
 	
 	console.log(`${timestamp()} Updating access token`);
 
-	oAuth2Client.setCredentials({
+	oA2C.setCredentials({
 		refresh_token: config.tokens.refresh_token
 	});
 
-	let t = await oAuth2Client.getAccessToken();
+	let t = await oA2C.getAccessToken();
 	config.tokens = Object.assign(config.tokens, t.res.data);
 
 	saveConfig();
@@ -112,7 +112,7 @@ function getNewToken(oA2C, callback) {
   const authUrl = oA2C.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    approval_prompt: 'force'
+    prompt: 'consent'
   });
 
   console.log('Please authorize the app in your browser');
@@ -125,9 +125,12 @@ function authorize(credentials, callback) {
   oAuth2Client = new google.auth.OAuth2(
       client_id, client_secret, redirect_uris[0]);
 
-	if(Date.now() > config.tokens.expiry_date) {
-		updateToken(oAuth2Client)
-	}
+  	if(!("refresh_token" in config.tokens)) {
+  		console.log("HERHER")
+  		getNewToken(oAuth2Client);
+  	}
+
+	if(Date.now() > config.tokens.expiry_date) updateToken(oAuth2Client)
 
 	oAuth2Client.setCredentials(config.tokens);
 	callback(oAuth2Client);
@@ -158,6 +161,7 @@ app.get(LOGIN_PATH, function(req, res) {
 	var redirect_url = oAuth2Client.generateAuthUrl({
 	    access_type: 'offline',
 	    scope: SCOPES,
+	    approval_prompt:'force'
 	});
 
 	res.redirect(redirect_url);
@@ -170,7 +174,7 @@ app.get("/favicon.ico",function(req,res) {
 app.get('/:key', function (req, res) {
 	console.log(timestamp(), "GET", "/" + DOC_KEY);
 
-	if(Date.now() > config.tokens.expiry_date) updateToken();
+	if(Date.now() > config.tokens.expiry_date) updateToken(oAuth2Client);
 
 	oAuth2Client.setCredentials(config.tokens);
 
@@ -201,6 +205,7 @@ if(questions.length) {
 			config.credentials.client_id = config.credentials.id || answers.client_id;
 			config.credentials.client_secret = config.credentials.client_secret || answers.client_secret;
 		})
+		.then(saveConfig)
 		.then(run);
 }
 else {
