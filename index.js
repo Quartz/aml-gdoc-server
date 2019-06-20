@@ -1,16 +1,13 @@
 #!/usr/bin/env node
 
-var inquirer = require('inquirer');
-var exec = require('child_process').exec;
-var expandTilde = require('expand-tilde');
-var express = require('express');
-var url = require('url');
-var archieml = require('archieml');
-var google = require("googleapis");
-var fs = require("fs");
-var OAuth2 = google.auth.OAuth2;
-var htmlparser = require('htmlparser2');
-var Entities = require('html-entities').AllHtmlEntities;
+const inquirer = require('inquirer');
+const expandTilde = require('expand-tilde');
+const express = require('express');
+const { google } = require('googleapis');
+const { docToArchieML } = require('@newswire/doc-to-archieml');
+const fs = require("fs");
+const opn = require('opn');
+const url = require("url");
 
 var questions = [];
 
@@ -24,14 +21,17 @@ var REDIRECT_PATH = "/auth";
 var LOGIN_PATH = "/login";
 var REDIRECT_URL = BASE_URL + REDIRECT_PATH;
 
-var oauth2Client;
+var oAuth2Client;
 var drive;
 var app = express();
 
 var TOKEN;
 var DOC_KEY;
 
+const SCOPES = ['https://www.googleapis.com/auth/documents.readonly'];
+
 var hasConfig = false;
+
 
 try {
 	config = JSON.parse(fs.readFileSync(configpath,"utf8"));
@@ -42,18 +42,15 @@ catch (e) {
 	console.log("\x1b[01m")
 	console.log("* You have no saved credentials.\n* Let's get you set up.","\x1b[00m")
 	console.log(" 1. Go to https://console.developers.google.com");
-	console.log(" 2. Create a new project. (It dosen't matter what you name it.)");
-	console.log(" 3. Wait for the project to be created, then click")
-	console.log("   \"Enable and manage APIS\" on the page it brings you to.");
-	console.log(" 4. Click \"Drive API\" under Google Apps and APIs." );
-	console.log(" 5. Click \"Enable API.\"");
-	console.log(" 6. In the menu on the left, click \"Credentials.\"");
-	console.log(" 7. Click \"Add Credentials\" select \"OAuth 2.0 client ID credentials\"");
-	console.log("    (it might ask you to fill out the OAuth consent screen; do that.)");
-	console.log(" 8. Select \"Web Application\" from the list and click the create button.");
-	console.log(" 9. Set an authorized JavaScript origin of: " + BASE_URL)
-	console.log("10. Set an authorized redirect URI of " + REDIRECT_URL);
-	console.log("11. Click create.\n\n");
+	console.log(" 2. Click \"Enable APIs and Services\"")
+	console.log(" 3. Search for Google Docs API ang click it" );
+	console.log(" 4. Click \"Enable\"");
+	console.log(" 5. In the menu on the left, click \"Credentials.\"");
+	console.log(" 6. Click \"Create Credentials\" select \"OAuth client ID\"");
+	console.log(" 7. Select \"Web Application\" from the list and click the create button.");
+	console.log(" 8. Set an authorized JavaScript origin of: " + BASE_URL)
+	console.log(" 9. Set an authorized redirect URI of " + REDIRECT_URL);
+	console.log("10. Click create.\n\n");
 
 	questions.push({
 		type:"confirm",
@@ -65,7 +62,7 @@ catch (e) {
 	config = {
 		tokens: {},
 		credentials: {
-
+			redirect_uris: [REDIRECT_URL]
 		}
 	};
 }
@@ -88,138 +85,66 @@ if(!config.credentials.client_secret) {
 	});
 }
 
-
-function parseGDoc(dom,res) {
-	// From https://github.com/newsdev/archieml-js/blob/master/examples/google_drive.js
-
-	/*
-	* Copyright (c) 2015 The New York Times Company
-	* 
-	* Licensed under the Apache License, Version 2.0 (the "License");
-	* you may not use this library except in compliance with the License.
-	* You may obtain a copy of the License at
-	* 
-	*     http://www.apache.org/licenses/LICENSE-2.0
-	* 
-	* Unless required by applicable law or agreed to in writing, software
-	* distributed under the License is distributed on an "AS IS" BASIS,
-	* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-	* See the License for the specific language governing permissions and
-	* limitations under the License.
-	*/
-
-	// Parse the document as HTML
-	//
-	// There are a few extra steps that we do to make working with Google
-	// Documents more useful. With a little more prep, we generally process
-	// the documents to:
-	//
-	//   * Include links that users enter in the google document as HTML
-	//     `<a>` tags
-	//   * Remove smart quotes inside tag brackets `<>` (which Google loves
-	//     to add for you)
-	//   * Ensure that list bullet points are turned into `*`s
-	//
-	// Unfortunately, google strips out links when you export as `text/plain`,
-	// so if you want to preserve them, we have to export the document in a
-	// different format, `text/html`.
-
-	var tagHandlers = {
-		_base: function (tag) {
-		var str = '';
-		tag.children.forEach(function(child) {
-			if (func = tagHandlers[child.name || child.type]) str += func(child);
-		});
-			return str;
-		},
-		text: function (textTag) {
-			return textTag.data;
-		},
-		span: function (spanTag) {
-			return tagHandlers._base(spanTag);
-		},
-		p: function (pTag) {
-			return tagHandlers._base(pTag) + '\n';
-		},
-		a: function (aTag) {
-		var href = aTag.attribs.href;
-		if (href === undefined) return '';
-
-		// extract real URLs from Google's tracking
-		// from: http://www.google.com/url?q=http%3A%2F%2Fwww.nytimes.com...
-		// to: http://www.nytimes.com...
-		if (aTag.attribs.href && url.parse(aTag.attribs.href,true).query && url.parse(aTag.attribs.href,true).query.q) {
-			href = url.parse(aTag.attribs.href,true).query.q;
-		}
-
-		var str = '<a href="' + href + '">';
-		str += tagHandlers._base(aTag);
-		str += '</a>';
-		return str;
-		},
-		li: function (tag) {
-		return '* ' + tagHandlers._base(tag) + '\n';
-		}
-	};
-
-	['ul', 'ol'].forEach(function(tag) {
-		tagHandlers[tag] = tagHandlers.span;
-	});
-	['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].forEach(function(tag) {
-		tagHandlers[tag] = tagHandlers.p;
-	});
-
-	try {
-		var body = dom[0].children[1];
-		var parsedText = tagHandlers._base(body);
-		
-
-		// Convert html entities into the characters as they exist in the google doc
-		var entities = new Entities();
-		parsedText = entities.decode(parsedText);
-
-		// Remove smart quotes from inside tags
-		parsedText = parsedText.replace(/<[^<>]*>/g, function(match){
-			return match.replace(/”|“/g, '"').replace(/‘|’/g, "'");
-		});
-
-		res.send(archieml.load(parsedText));
-	}
-	catch (e) {
-		console.log(timestamp(), 403, "Cannot access that Google Doc");
-		res.status(403).send("Cannot access that Google Doc. Make sure sharing is set to “Anyone with link can view.”");
-	}
-	
+function saveConfig() {
+	fs.writeFileSync(configpath, JSON.stringify(config, null, 4))
 }
 
 function timestamp() {
 	return "[" + new Date().toISOString().split("T")[1] + "]";
 }
 
+
+function getNewToken(oA2C, callback) {
+  const authUrl = oA2C.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+  });
+
+  console.log('Please authorize the app in your browser');
+  opn(authUrl, {wait: false}).then(cp => cp.unref());
+
+}
+
+function authorize(credentials, callback) {
+	console.log(credentials)
+  const {client_secret, client_id, redirect_uris} = credentials;
+  oAuth2Client = new google.auth.OAuth2(
+      client_id, client_secret, redirect_uris[0]);
+
+  // Check if we have previously stored a token.
+  fs.readFile(configpath, (err, config) => {
+    if (err) return getNewToken(oAuth2Client, callback);
+    oAuth2Client.setCredentials(config.tokens);
+    callback(oAuth2Client);
+  });
+}
+
 app.get(REDIRECT_PATH, function(req, res) {
 	console.log(timestamp(), "GET", REDIRECT_PATH);
 	var code = url.parse(req.url, true).query.code;
-	oauth2Client.getToken(code,function(err,tokens) {
-		if(!err) {
-			config.tokens = tokens;
-			fs.writeFileSync(configpath,JSON.stringify(config),"utf8");
-			oauth2Client.setCredentials(config.tokens);
-			console.log(timestamp(), "The app is now authorized");
-			res.send("The app is now authorized!");
-		}
-		else {
-			console.log(timestamp(), "Failed to get acceess token");
-			res.send("There was an error getting an access token");
-		}
+
+
+	oAuth2Client.getToken(code, (err, token) => {
+	  if (err) return res.send(`There was an error getting an access token\n{JSON.stringify(err, null, 4)}`);
+	  
+
+	  oAuth2Client.setCredentials(token);
+	  config.tokens = token;
+	  saveConfig();
+
+	  console.log(timestamp(), "The app is now authorized");
+	  res.send("The app is now authorized!");
+
 	});
+
 });
 
 app.get(LOGIN_PATH, function(req, res) {
 	console.log(timestamp(), "GET", LOGIN_PATH);
-	var redirect_url = oauth2Client.generateAuthUrl({
-		access_type: 'offline',
-		scope: ['https://www.googleapis.com/auth/drive.readonly'],
-		approval_prompt: 'force'
+
+	var redirect_url = oAuth2Client.generateAuthUrl({
+	    access_type: 'offline',
+	    scope: SCOPES,
 	});
 
 	res.redirect(redirect_url);
@@ -231,39 +156,11 @@ app.get("/favicon.ico",function(req,res) {
 
 app.get('/:key', function (req, res) {
 	console.log(timestamp(), "GET", "/" + DOC_KEY);
-	var latest_tokens = JSON.parse(fs.readFileSync(configpath,"utf8")).tokens;
 
-	oauth2Client.setCredentials(latest_tokens);
+	oAuth2Client.setCredentials(config.tokens);
 
-	oauth2Client.refreshAccessToken(function(err, tokens) {
-
-		if(!err) {
-			config.tokens = tokens;
-			fs.writeFileSync(configpath,JSON.stringify(config),"utf8");
-
-			oauth2Client.setCredentials(config.tokens);
-			request = drive.files.get({fileId: DOC_KEY}, function (err, doc) {
-				if (err) return res.send(err);
-
-				export_link = doc.exportLinks['text/html'];
-				oauth2Client._makeRequest({method: "GET", uri: export_link}, function(err, body) {
-					var handler = new htmlparser.DomHandler(function(error, dom) {
-						parseGDoc(dom,res);
-					});
-
-					var parser = new htmlparser.Parser(handler);
-
-					parser.write(body);
-					parser.done();
-				});
-			});
-		}
-		else {
-			res.send(err);
-		}
-
-		
-	});
+	docToArchieML({ documentId: DOC_KEY, auth: oAuth2Client })
+		.then(r => res.send(r), e => res.status(e.code).send(e.response.data.error));
 	
 });
 
@@ -273,40 +170,22 @@ app.param('key', function (req, res, next, key) {
 });
 
 function run() {
-	CLIENT_ID = config.credentials.client_id;
-	CLIENT_SECRET = config.credentials.client_secret;
-
-
-	oauth2Client = new OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL);
-	drive = google.drive({version:'v2', auth: oauth2Client});
 
 	var server = app.listen(PORT, function () {
-
-		if(!config.tokens.access_token) {
-			console.log('Please authorize the app in your browser');
-
-			exec("open " + BASE_URL + LOGIN_PATH, function(error,stdout,stderr){
-				if (error) console.log(error);
-			});
-		}
-		else {
-			console.log("You're all set up and ready to go!");
-		}
-
-		console.log('%s The aml-gdoc-server is up and listening at http://%s:%s',timestamp(), HOST, PORT);
+		console.log(`${timestamp()} The aml-gdoc-server is up and listening at ${HOST}:${PORT}`);
 	});
+
+	authorize(config.credentials,()=>{})
 
 }
 
 if(questions.length) {
-	inquirer.prompt(questions, function(answers){
-		config.credentials = {
-			client_id: config.credentials.id || answers.client_id,
-			client_secret: config.credentials.client_secret || answers.client_secret,
-		};
-
-		run();
-	});
+	inquirer.prompt(questions)
+		.then(function(answers){
+			config.credentials.client_id = config.credentials.id || answers.client_id;
+			config.credentials.client_secret = config.credentials.client_secret || answers.client_secret;
+		})
+		.then(run);
 }
 else {
 	run();

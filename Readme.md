@@ -33,5 +33,3 @@ The server defaults to port 6006 i.e. "Goog."
 
 ArchieML formatted Google Docs can can be retrieved using this url structure `http://127.0.0.1:6006/{google-doc-key}`
 
-Currently your Google doc needs to be set to "Allow anyone with the link to view"
-
