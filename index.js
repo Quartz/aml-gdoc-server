@@ -126,7 +126,6 @@ function authorize(credentials, callback) {
       client_id, client_secret, redirect_uris[0]);
 
   	if(!("refresh_token" in config.tokens)) {
-  		console.log("HERHER")
   		getNewToken(oAuth2Client);
   	}
 
@@ -137,7 +136,7 @@ function authorize(credentials, callback) {
 }
 
 app.get(REDIRECT_PATH, function(req, res) {
-	console.log(timestamp(), "GET", REDIRECT_PATH);
+	console.log(`${timestamp()} GET ${REDIRECT_PATH}`);
 	var code = url.parse(req.url, true).query.code;
 
 
@@ -148,7 +147,7 @@ app.get(REDIRECT_PATH, function(req, res) {
 	  config.tokens = Object.assign(config.tokens, token);
 	  saveConfig();
 
-	  console.log(timestamp(), "The app is now authorized");
+	  console.log(`${timestamp()} The app is now authorized`);
 	  res.send("The app is now authorized!");
 
 	});
@@ -156,7 +155,7 @@ app.get(REDIRECT_PATH, function(req, res) {
 });
 
 app.get(LOGIN_PATH, function(req, res) {
-	console.log(timestamp(), "GET", LOGIN_PATH);
+	console.log(`${timestamp()} GET ${LOGIN_PATH}`);
 
 	var redirect_url = oAuth2Client.generateAuthUrl({
 	    access_type: 'offline',
@@ -172,7 +171,7 @@ app.get("/favicon.ico",function(req,res) {
 });
 
 app.get('/:key', function (req, res) {
-	console.log(timestamp(), "GET", "/" + DOC_KEY);
+	console.log(`${timestamp()} GET /${DOC_KEY}`);
 
 	if(Date.now() > config.tokens.expiry_date) updateToken(oAuth2Client);
 
